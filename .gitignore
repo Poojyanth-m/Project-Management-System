@@ -1,0 +1,44 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+/projectpulse-frontend/dist/
+/projectpulse-backend/dist/
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Private keys/secrets
+*.pem
+*.key
+
+# Database / Local dynamic files
+/projectpulse-backend/prisma/*.db
+/projectpulse-backend/prisma/*.db-journal
+/projectpulse-backend/uploads/

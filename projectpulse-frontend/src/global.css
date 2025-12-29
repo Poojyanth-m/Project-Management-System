@@ -1,0 +1,79 @@
+/* Remove all focus outlines globally */
+*,
+*:focus,
+*:focus-visible,
+*:active {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Remove blue highlight on buttons */
+button,
+button:focus,
+button:focus-visible,
+button:active {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Remove blue highlight on inputs */
+input,
+input:focus,
+input:focus-visible,
+textarea,
+textarea:focus,
+textarea:focus-visible,
+select,
+select:focus,
+select:focus-visible {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Remove blue highlight on MUI components */
+.MuiButton-root,
+.MuiButton-root:focus,
+.MuiButton-root:focus-visible,
+.MuiButton-root:active,
+.MuiIconButton-root,
+.MuiIconButton-root:focus,
+.MuiIconButton-root:focus-visible,
+.MuiIconButton-root:active,
+.MuiChip-root,
+.MuiChip-root:focus,
+.MuiChip-root:focus-visible,
+.MuiChip-root:active,
+.MuiButtonBase-root,
+.MuiButtonBase-root:focus,
+.MuiButtonBase-root:focus-visible,
+.MuiButtonBase-root:active {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Remove default browser focus styles */
+:focus-visible {
+  outline: none !important;
+}
+
+/* Remove webkit focus ring */
+:focus {
+  outline: none !important;
+}
+
+/* Override default browser autofill styling */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: #1f2937 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Remove any ripple or focus effects */
+.MuiTouchRipple-root {
+  display: none !important;
+}

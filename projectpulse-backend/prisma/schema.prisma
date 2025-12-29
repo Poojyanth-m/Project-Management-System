@@ -1,0 +1,515 @@
+// Project Pulse PMS - Database Schema
+// Phase 2: Schema Design
+// PostgreSQL Database with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS - Shared across frontend and backend
+// ============================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+}
+
+enum EntityType {
+  PROJECT
+  TASK
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  DELETED
+  ASSIGNED
+  COMMENTED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  COMPLETED
+  ARCHIVED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum ResourceType {
+  HUMAN
+  EQUIPMENT
+  SOFTWARE
+  VENUE
+}
+
+enum ResourceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+
+// Module: users, auth
+model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  firstName   String
+  lastName    String
+  avatar      String?
+  role        UserRole  @default(MEMBER)
+  isActive    Boolean   @default(true)
+  isArchived  Boolean   @default(false)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations - Projects (many-to-many)
+  projectMembers ProjectMember[]
+
+  // Relations - Tasks
+  assignedTasks Task[] @relation("TaskAssignee")
+  createdTasks  Task[] @relation("TaskCreator")
+
+  // Relations - Time Tracking
+  timeEntries TimeEntry[]
+
+  // Relations - Collaboration
+  comments Comment[]
+
+  // Relations - Activity Logs
+  activities ActivityLog[]
+
+  // Relations - Auth
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  // Relations - Notifications
+  notifications Notification[]
+
+  // Relations - Created entities
+  createdProjects Project[] @relation("ProjectCreator")
+  createdBudgets  Budget[]  @relation("BudgetCreator")
+
+  // Settings
+  settings UserSettings?
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+// Module: auth
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// Module: users
+model UserSettings {
+  id                      String  @id @default(uuid())
+  userId                  String  @unique
+  marketingEmails         Boolean @default(false)
+  productUpdates          Boolean @default(true)
+  commentsNotifications   Boolean @default(true)
+  assignmentsNotifications Boolean @default(true)
+  weeklyDigest            Boolean @default(false)
+  theme                   String  @default("light")
+  language                String  @default("en")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// Module: auth
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+// Module: projects
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?       @db.Text
+  status      ProjectStatus @default(PLANNED)
+  startDate   DateTime?
+  endDate     DateTime?
+  isArchived  Boolean       @default(false)
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations - Creator
+  createdBy User @relation("ProjectCreator", fields: [createdById], references: [id])
+
+  // Relations - Team Members (many-to-many via join table)
+  members ProjectMember[]
+
+  // Relations - Tasks
+  tasks Task[]
+
+  // Relations - Budget (one-to-one)
+  budget Budget?
+
+  // Relations - Files
+  files File[] @relation("ProjectFiles")
+
+  // Relations - Activity Logs
+  activities ActivityLog[] @relation("ProjectActivities")
+
+  // Relations - Resources
+  resources           Resource[]
+  resourceAllocations ResourceAllocation[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([isArchived])
+  @@index([startDate])
+  @@index([endDate])
+  @@map("projects")
+}
+
+// Module: projects (many-to-many join table)
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      UserRole @default(MEMBER)
+  joinedAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// Module: tasks, gantt
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?      @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  projectId   String
+  assigneeId  String?
+  createdById String
+
+  // Gantt-specific fields
+  startDate DateTime?
+  dueDate   DateTime?
+  duration  Int? // in hours
+  progress  Int       @default(0) // 0-100%
+
+  // Task dependencies for Gantt
+  parentTaskId String?
+  orderIndex   Int     @default(0)
+
+  isArchived  Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations - Project
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Relations - Users
+  assignee  User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy User  @relation("TaskCreator", fields: [createdById], references: [id])
+
+  // Relations - Task Dependencies (self-referencing for Gantt)
+  parentTask Task?  @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks   Task[] @relation("TaskHierarchy")
+
+  // Relations - Dependencies
+  dependencies TaskDependency[] @relation("DependentTask")
+  dependencyOf TaskDependency[] @relation("BlockedByTask")
+
+  // Relations - Time Tracking
+  timeEntries TimeEntry[]
+
+  // Relations - Collaboration
+  comments Comment[]
+
+  // Relations - Files
+  files File[] @relation("TaskFiles")
+
+  // Relations - Activity Logs
+  // Relations - Activity Logs
+  activities ActivityLog[] @relation("TaskActivities")
+
+  // Relations - Resources
+  resourceAllocations ResourceAllocation[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([createdById])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([parentTaskId])
+  @@map("tasks")
+}
+
+// Module: gantt (task dependencies)
+model TaskDependency {
+  id              String   @id @default(uuid())
+  taskId          String // The task that depends on another
+  dependsOnTaskId String // The task that blocks this task
+  createdAt       DateTime @default(now())
+
+  task          Task @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTask Task @relation("BlockedByTask", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([taskId])
+  @@index([dependsOnTaskId])
+  @@map("task_dependencies")
+}
+
+// Module: time-tracking
+model TimeEntry {
+  id          String    @id @default(uuid())
+  userId      String
+  taskId      String
+  description String?   @db.Text
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int? // in minutes, calculated on endTime
+  isBillable  Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([startTime])
+  @@index([endTime])
+  @@map("time_entries")
+}
+
+// Module: collaboration
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+// Module: files
+model File {
+  id         String     @id @default(uuid())
+  name       String
+  url        String
+  size       Int // in bytes
+  mimeType   String
+  entityType EntityType
+  entityId   String // projectId or taskId
+  uploadedBy String
+  isArchived Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // Polymorphic relations
+  project Project? @relation("ProjectFiles", fields: [entityId], references: [id], onDelete: Cascade, map: "file_project_fk")
+  task    Task?    @relation("TaskFiles", fields: [entityId], references: [id], onDelete: Cascade, map: "file_task_fk")
+
+  @@index([entityType, entityId])
+  @@index([uploadedBy])
+  @@map("files")
+}
+
+// Module: budget
+model Budget {
+  id          String   @id @default(uuid())
+  projectId   String   @unique
+  totalBudget Float
+  currency    String   @default("USD")
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("BudgetCreator", fields: [createdById], references: [id])
+  expenses  Expense[]
+
+  @@index([projectId])
+  @@map("budgets")
+}
+
+// Module: budget
+model Expense {
+  id          String        @id @default(uuid())
+  budgetId    String
+  description String
+  amount      Float
+  category    String?
+  status      ExpenseStatus @default(PENDING)
+  receiptUrl  String?
+  expenseDate DateTime
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId])
+  @@index([status])
+  @@index([expenseDate])
+  @@map("expenses")
+}
+
+// Module: analytics
+model ActivityLog {
+  id         String         @id @default(uuid())
+  userId     String
+  action     ActivityAction
+  entityType EntityType
+  entityId   String
+  metadata   Json? // Store additional context as JSON
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Polymorphic relations
+  project Project? @relation("ProjectActivities", fields: [entityId], references: [id], onDelete: Cascade, map: "activity_project_fk")
+  task    Task?    @relation("TaskActivities", fields: [entityId], references: [id], onDelete: Cascade, map: "activity_task_fk")
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+// Module: collaboration (notifications)
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  title     String
+  message   String             @db.Text
+  type      String // e.g., "TASK_ASSIGNED", "COMMENT_ADDED", "DEADLINE_APPROACHING"
+  status    NotificationStatus @default(UNREAD)
+  metadata  Json? // Additional data
+  createdAt DateTime           @default(now())
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// Module: resources
+model Resource {
+  id           String         @id @default(uuid())
+  name         String
+  type         ResourceType   @default(HUMAN)
+  status       ResourceStatus @default(ACTIVE)
+  availability Int            @default(100) // Percentage
+  costPH       Float?         // Cost per hour
+  projectId    String? // Dedicated to project?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  project     Project?             @relation(fields: [projectId], references: [id])
+  allocations ResourceAllocation[]
+
+  @@index([projectId])
+  @@index([type])
+  @@map("resources")
+}
+
+model ResourceAllocation {
+  id                   String   @id @default(uuid())
+  resourceId           String
+  projectId            String
+  taskId               String?
+  startDate            DateTime
+  endDate              DateTime
+  allocationPercentage Int      @default(100)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task     Task?    @relation(fields: [taskId], references: [id])
+
+  @@index([resourceId])
+  @@index([projectId])
+  @@index([taskId])
+  @@map("resource_allocations")
+}

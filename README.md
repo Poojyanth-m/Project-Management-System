@@ -144,8 +144,3 @@ npm run dev
 
 ---
 
-## 👥 Contributors
--   **Poojyanth M** - *Lead Architect & Full Stack Developer* - [GitHub](https://github.com/Poojyanth-m)
-
----
-*Created and maintained by Poojyanth M. Professional Enterprise Software Solutions.*

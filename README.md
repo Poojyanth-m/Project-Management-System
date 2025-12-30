@@ -92,7 +92,7 @@ All API requests are prefixed with `/api`. Authentication is required for all en
 
 ---
 
-## 🛠️ Corporate Installation Guide
+## 🛠️ Installation Guide
 
 ### **Standard Prerequisites**
 -   Node.js v18.x or v20.x (LTS recommended)
@@ -144,8 +144,3 @@ npm run dev
 
 ---
 
-## 👥 Contributors
--   **Poojyanth M** - *Lead Architect & Full Stack Developer* - [GitHub](https://github.com/Poojyanth-m)
-
----
-*Created and maintained by Poojyanth M. Professional Enterprise Software Solutions.*
